@@ -86,11 +86,10 @@ void BDMAnalyzer::CollectPackets()
         dsdi_packet = ( dsdi_packet << 1 ) | mDSDI->GetBitState();
         dsdo_packet = ( dsdo_packet << 1 ) | mDSDO->GetBitState();
 
-        // double advance because we still have to get past the rising edge for this bit
+        // advance because we still have to get to the rising edge for this bit
         mDSCK->AdvanceToNextEdge();
         U64 ending_sample_packet = mDSCK->GetSampleNumber();
-        mDSCK->AdvanceToNextEdge();
-        
+        this->SyncChannels(mDSCK->GetSampleNumber());
 
         Frame mode_control_frame;
         mode_control_frame.mData1 = mode_control;
@@ -186,6 +185,17 @@ void BDMAnalyzer::WorkerThread()
             break;
         case PKT_START:
             this->CollectPackets();
+            if(mDSDI->GetBitState() == BIT_HIGH){
+                // last bit was high meaning if another message follows immediately
+                // there won't be a DSDI rising edge to search for in CORE_READY
+                mDSCK->AdvanceToNextEdge();
+                this->SyncChannels(mDSCK->GetSampleNumber());
+                if(mDSDI->GetBitState() == BIT_HIGH) {
+                    // DSDI is still high at DSCK falling edge, which means we
+                    // are at the start of another message, stay in PKT_START 
+                    break;
+                }
+            } 
             bdm_state = CORE_READY;
             break;
         }
