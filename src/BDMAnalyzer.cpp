@@ -15,8 +15,8 @@ BDMAnalyzer::~BDMAnalyzer()
 
 void BDMAnalyzer::SetupResults()
 {
-    // SetupResults is called each time the analyzer is run. 
-    // Because the same instance can be used for multiple runs, 
+    // SetupResults is called each time the analyzer is run.
+    // Because the same instance can be used for multiple runs,
     // we need to clear the results each time.
     mResults.reset( new BDMAnalyzerResults( this, &mSettings ) );
     SetAnalyzerResults( mResults.get() );
@@ -44,12 +44,13 @@ void BDMAnalyzer::CollectPackets()
     U64 starting_sample_control = mDSDI->GetSampleNumber();
 
     if( mDSDO->GetBitState() == BIT_LOW )
-    { 
+    {
         // target ready
 
         // read start, mode, control, and status bits
-        for( S32 i = 2; i >= 0; i-- ) {
-            mDSCK->AdvanceToNextEdge();      
+        for( S32 i = 2; i >= 0; i-- )
+        {
+            mDSCK->AdvanceToNextEdge();
             this->SyncChannels( mDSCK->GetSampleNumber() );
             mResults->AddMarker( mDSDI->GetSampleNumber(), AnalyzerResults::Dot, mSettings.mDSDIChannel );
             mResults->AddMarker( mDSDO->GetSampleNumber(), AnalyzerResults::Dot, mSettings.mDSDOChannel );
@@ -63,7 +64,7 @@ void BDMAnalyzer::CollectPackets()
         U64 starting_sample_packet = mDSDI->GetSampleNumber();
 
         U8 pkt_len = ( ( mode_control & 0x2 ) >> 1 ) ? 7 : 32; // mode bit determines packet length
-        for( S32 i = 0; i < pkt_len-1; i++ ) // pkt_len-1 as we want to handle the final bit separately
+        for( S32 i = 0; i < pkt_len - 1; i++ )                 // pkt_len-1 as we want to handle the final bit separately
         {
             mDSCK->AdvanceToNextEdge();
             this->SyncChannels( mDSCK->GetSampleNumber() );
@@ -73,13 +74,13 @@ void BDMAnalyzer::CollectPackets()
             dsdo_packet = ( dsdo_packet << 1 ) | mDSDO->GetBitState();
             mDSCK->AdvanceToNextEdge();
         }
-        /* 
+        /*
         target device sometimes blips DSDO to create falling edge indicating
         that it is ready to receive another command. It can happen very
         close to the rising edge of DSCK so for the last bit we will
         read the value one sample prior to the DSCK rising edge
         */
-        mDSCK->AdvanceToAbsPosition(mDSCK->GetSampleOfNextEdge()-1);
+        mDSCK->AdvanceToAbsPosition( mDSCK->GetSampleOfNextEdge() - 1 );
         this->SyncChannels( mDSCK->GetSampleNumber() );
         mResults->AddMarker( mDSDI->GetSampleNumber(), AnalyzerResults::Dot, mSettings.mDSDIChannel );
         mResults->AddMarker( mDSDO->GetSampleNumber(), AnalyzerResults::Dot, mSettings.mDSDOChannel );
@@ -89,11 +90,11 @@ void BDMAnalyzer::CollectPackets()
         // advance because we still have to get to the rising edge for this bit
         mDSCK->AdvanceToNextEdge();
         U64 ending_sample_packet = mDSCK->GetSampleNumber();
-        this->SyncChannels(mDSCK->GetSampleNumber());
+        this->SyncChannels( mDSCK->GetSampleNumber() );
 
         Frame mode_control_frame;
         mode_control_frame.mData1 = mode_control;
-        mode_control_frame.mData2 = status;        
+        mode_control_frame.mData2 = status;
         mode_control_frame.mFlags = ( mode_control & 0x2 ) >> 1;
         mode_control_frame.mStartingSampleInclusive = starting_sample_control;
         mode_control_frame.mEndingSampleInclusive = starting_sample_packet;
@@ -125,11 +126,8 @@ void BDMAnalyzer::CollectPackets()
         bdmMessage.AddByte( "Status 1", ( status & 0x2 ) >> 1 );
         bdmMessage.AddByte( "Status 2", ( status & 0x1 ) );
         bdmMessage.AddByteArray( "Response", ( const U8* )dsdopktbytearray, 4 );
-        mResults->AddFrameV2(
-            bdmMessage, 
-            ((mode_control & 0x2)>>1) ? "Trap": "Instruction", 
-            mode_control_frame.mStartingSampleInclusive, 
-            dsdi_pkt_frame.mEndingSampleInclusive );
+        mResults->AddFrameV2( bdmMessage, ( ( mode_control & 0x2 ) >> 1 ) ? "Trap" : "Instruction",
+                              mode_control_frame.mStartingSampleInclusive, dsdi_pkt_frame.mEndingSampleInclusive );
 
         mResults->CommitResults();
     }
@@ -185,17 +183,19 @@ void BDMAnalyzer::WorkerThread()
             break;
         case PKT_START:
             this->CollectPackets();
-            if(mDSDI->GetBitState() == BIT_HIGH){
+            if( mDSDI->GetBitState() == BIT_HIGH )
+            {
                 // last bit was high meaning if another message follows immediately
                 // there won't be a DSDI rising edge to search for in CORE_READY
                 mDSCK->AdvanceToNextEdge();
-                this->SyncChannels(mDSCK->GetSampleNumber());
-                if(mDSDI->GetBitState() == BIT_HIGH) {
+                this->SyncChannels( mDSCK->GetSampleNumber() );
+                if( mDSDI->GetBitState() == BIT_HIGH )
+                {
                     // DSDI is still high at DSCK falling edge, which means we
-                    // are at the start of another message, stay in PKT_START 
+                    // are at the start of another message, stay in PKT_START
                     break;
                 }
-            } 
+            }
             bdm_state = CORE_READY;
             break;
         }
